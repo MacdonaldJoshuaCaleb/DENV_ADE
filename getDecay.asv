@@ -1,30 +1,31 @@
-function ret_ = getDecay
-data = readtable('~/Documents/MATLAB/Dengue/Data_DENV3_anti_NS1_Mar_2016.csv');
+function metrics = getDecay
+set(0,'defaultTextInterpreter','latex');
+data = readtable('Data_DENV3_anti_NS1_Mar_2016.csv');
 patitents = unique(table2array(data(:,2)));
 
 close all
 options=odeset('RelTol',1e-12,'AbsTol',1e-12);
 
     function ret = objfxn(p,t)
-        u0 = p(2);
-f = @(t,u) -p(1).*u.^2;
+        
+        u0 = p(2); k = p(1); 
+f = @(t,u) -k*u;
 [~,ret] = ode45(f,t,u0,options);
 ret = ret';
 if length(igg) == 2
     ret = [ret(1),ret(end)];
 end
+ret = ret.*sqwt;
     end
 
     function ret = plotfxn(p,t)
-        u0 = p(2);
-f = @(t,u) -p(1).*u.^2;
+    
+        u0 = p(2); k = p(1); 
+f = @(t,u) -k*u;
 [~,ret] = ode45(f,t,u0,options);
 ret = ret';
-% if length(igg) == 2
-%     ret = [ret(1),ret(end)];
-% end
     end
-
+count = 0;
 for j = 1:length(patitents)
     idx = find(table2array(data(:,2)) == patitents(j));
     times = table2array(data(idx,7));
@@ -39,69 +40,89 @@ for j = 1:length(patitents)
     
 %          figure
 %          hold on
-        times = times(I:end)
+        times = times(I:end);
+        [times t_I] = unique(times);
         igg = igg(I:end);
-        igg_ = igg(I:end);
+        igg = igg(t_I);
         idx2 = find(igg > 0);
         igg = igg(idx2);
-        igg_plot = igg(idx2);
-        if  length(igg) >= 2
         igg = log10(igg);
-        M = log10(M);
+        igg_plot = igg(idx2);
+       
+        if  length(igg) >= 2 
+            log(igg(end)/igg(1))/-times(end) 
+%         igg = log10(igg);
+%         M = log10(M);
         times = times(idx2);
         tt = times;
 %         times = log10(times);
 %         times = times/365;
         start = times(1);
         times = times - start;
-        lb = [0,.9*M];
-        ub = [inf,1.1*M];
-        p0 = [1,M];
+        times = times/365;
+        c_m = table2array(data(:,8));
+        c_m = c_m(c_m > 0);
+        kk = (log(igg(end)/igg(1))./-times(end));
+        lb = [log(2)/8,(1-.025)*igg(1)];
+        ub = [3,1.025*igg(1)];
+%         array2table([lb;p0;ub])
+        p0 = [1,igg(1)];
+     
+        
+     array2table([lb;p0;ub])
 %      igg, objfxn(p0,times);
+% times = times./365;
         tplot = times;
     sqwt = ones(size(igg'));
-    sqwt(end) = 3;
+  sqwt(1) = 2;
+  sqwt(end) = 2;
 %     objfxn(p0,times)
-    times
-    [pfit(j,:), resnorm] = lsqcurvefit(@objfxn,p0,times,igg',lb,ub);
+%     igg = log10(igg);
+     u0s(j) = igg(1);
+    [pfit(j,:), resnorm] = lsqcurvefit(@objfxn,p0,times,igg'.*sqwt,lb,ub);
+    
+   
 %     array2table(pfit)
-
-figure
-hold on
-    plot(tt(1):.01:tt(end)+1,plotfxn(pfit(j,:),times(1):.01:times(end)+1))
-    scatter(tt,igg')
-    hold off
-    ylim([0, ceil(M)])
-%     plot(tt,objfxn(pfit(j,:),times))
-%     scatter(tt,igg')
-%     hold off
-%     plot(times_+start_,plotfun(pfit(j,:),times_))
-%     figure
-%     plot(tt,
-    
-    
+        end
+end
 % figure
 % hold on
-% plot(tt(1):1:tt(end),plotfun(pfit(j,:),tt(1)-tt(1):1:tt(end)-tt(1)))
-% scatter(tt,igg_plot,'filled')
-% hold off
-%     
+%     plot(tt(1):.01:tt(end)+1,plotfxn(pfit(j,:),times(1):.01:times(end)+1))
+%     scatter(tt,igg')
 %     hold off
-    end
-end
-hold off
+%     ylim([0, ceil(M)])
+% %     plot(tt,objfxn(pfit(j,:),times))
+% %     scatter(tt,igg')
+% %     hold off
+% %     plot(times_+start_,plotfun(pfit(j,:),times_))
+% %     figure
+% %     plot(tt,
+%     
+%     
+% % figure
+% % hold on
+% % plot(tt(1):1:tt(end),plotfun(pfit(j,:),tt(1)-tt(1):1:tt(end)-tt(1)))
+% % scatter(tt,igg_plot,'filled')
+% % hold off
+% %     
+% %     hold off
+%     end
+% end
+% hold off
 % xlabel('Time post symptom onset (years)')
 % ylabel('IGG level ($\log_{10}(\mu g/mL)$')
 % set(gca,'FontSize',18)
-decayrate = pfit(:,2);
+
+decayrate = pfit(:,1);
 decayrate = decayrate(decayrate > 0);
 %decayrate = table2array(decayrate)
 x = linspace(min(decayrate),max(decayrate),500);
-[pHat,pCI] = gamfit(decayrate)
+[pHat,pCI] = lognfit(decayrate)
+
 % ret_ = pHat;
 figure
 yyaxis right
-plot(x,gampdf(x,pHat(1),pHat(2)),'linewidth',2)
+plot(x,lognpdf(x,pHat(1),pHat(2)),'linewidth',2)
 ylabel('pdf')
 yyaxis left
 histogram(decayrate,20)
@@ -110,31 +131,130 @@ ylabel('Count')
 xlim([0 max(x)])
 set(gca,'FontSize',18)
 
+
+ret = pfit;
+idx = find(ret(:,1) > 0);
+ret_ = ret(idx,:);
+u0s = u0s(idx);
+Mu = mean(log(ret_))
+Sigma = cov(log(ret_))
+%ret = pHat;
+ function ret = plotfxn2(p,t)
+    
+        u0 = p(2); k = p(1); 
+f = @(t,u) -k*u;
+[~,ret] = ode45(f,t,u0,options);
+ret = ret';
+    end
+t = 0:.01:4.25;
+for j = 1:2000
+    sample = exp(mvnrnd(Mu,Sigma,1));
+decs(j,:) = plotfxn2(sample,t);
+end
+
+color_prim = [76/256, 114/256, 176/256];
 figure
 hold on
+
+
 for j = 1:length(patitents)
     idx = find(table2array(data(:,2)) == patitents(j));
     times = table2array(data(idx,7));
+    times = times-times(1);
     igg = table2array(data(idx,8));
     
     [M I] = max(igg);
     if I < length(igg) 
         times = times(I:end);
+        times = times-times(1);
         igg = igg(I:end);
         idx2 = find(igg > 0);
         igg = igg(idx2);
         times = times(idx2);
-        times = times./365;
-        p0 = [M,.1];
+        times = times;
+        p0 = [M,10];
     %[pfit(j,:), resnorm] = lsqcurvefit(@objfxn,p0,times,igg,lb,ub);
-    plot(times,igg,'k-^')
+    plot(times/365,igg,'k-^')
     tt(j) = min(times);
     iggs(j) = igg(1);
     end
 end
+x = [t,fliplr(t)];
+between = [10.^quantile(decs,.025),fliplr(10.^quantile(decs,1-.025))];
+h = fill(x, between,color_prim,'LineStyle','none','Marker','none');
+h.Annotation.LegendInformation.IconDisplayStyle = 'off';
+set(h,'facealpha',.4)
+
+plot(t,10.^quantile(decs,.5),'Color',color_prim,'linewidth',2)
+ylim([1 inf])
+xlim([0,4.25])
+set(gca, 'YScale', 'log')
 hold off
-ret = pfit;
-idx = find(ret(:,2) > 0);
-ret_ = ret(idx,:);
-%ret = pHat;
+
+T = readtable('~/Documents/DENV_Sims.csv');
+satus = table2array(T(:,end));
+inits = table2array(T(:,11));
+idx = find(inits > 0.16 & inits < 0.54);
+inits = inits(idx);
+% ret_ = pHat;
+figure
+histogram(satus,20)
+xlabel('IGG saturation')
+ylabel('Count')
+% xlim([0 max(x)])
+set(gca,'FontSize',18)
+
+figure
+histogram(inits,20)
+xlabel('ys0')
+ylabel('Count')
+% xlim([0 max(x)])
+set(gca,'FontSize',18)
+size(inits),size(satus)
+
+t = 0:(1/12):30;
+fig = figure;
+   fig.Position = [1 1 1600 800];
+hold on
+r_satu = randsample(length(satus),10000);
+for j = 1:10000
+kk = lognrnd(pHat(1),pHat(2),1);
+hl(j) = log(1/2)/-kk;
+while hl(j) > 10
+    kk = lognrnd(pHat(1),pHat(2),1);
+    hl(j) = log(1/2)/-kk;
+end
+p0 = satus(r_satu(j));
+y(j,:) = plotfxn2([kk,p0],t);
+idx = find(y(j,:) > 0.16 & y(j,:) < 0.54);
+if length(idx) > 0
+enter(j) = t(idx(1));
+exit(j) = t(idx(end));
+stay(j) = exit(j)-enter(j);
+elseif length(idx) == 0
+    enter(j) = NaN;
+    exit(j) = NaN;
+    stay(j) = NaN;
+end
+end
+x = [t,fliplr(t)];
+between = [10.^quantile(y,.025),fliplr(10.^quantile(y,1-.025))];
+h = fill(x, between,color_prim,'LineStyle','none','Marker','none');
+h.Annotation.LegendInformation.IconDisplayStyle = 'off';
+set(h,'facealpha',.5)
+plot(t,10.^median(y),'Color',color_prim,'Linewidth',2)
+between = [(10.^.16)*ones(size(t)),fliplr((10.^.54)*ones(size(t)))];
+h = fill(x, between,'black','LineStyle','none','Marker','none');
+% h.Annotation.LegendInformation.IconDisplayStyle = 'off';
+set(h,'facealpha',.5)
+hold off
+xlabel('Time [years]')
+ylabel('Cross-reactive IgG [$y_p,~\mu g/mL$]')
+set(gca, 'YScale', 'log')
+set(gca,'FontSize',24)
+xlim([0 7])
+
+figure
+% set(gca,)
+metrics = [enter',exit',stay',hl'];
 end
